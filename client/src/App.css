@@ -1,0 +1,43 @@
+.App {
+  text-align: center;
+}
+
+/* GPS location fetching animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Global responsive fixes */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Ensure MUI components respect container bounds */
+.MuiBox-root {
+  box-sizing: border-box;
+}
+
+/* Prevent horizontal scrolling */
+body {
+  position: relative;
+  overflow-x: hidden;
+}
