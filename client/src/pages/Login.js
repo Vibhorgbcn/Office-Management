@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -10,14 +10,29 @@ import {
   Alert,
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
+import axios from 'axios';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [superAdminExists, setSuperAdminExists] = useState(true);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    checkSuperAdminStatus();
+  }, []);
+
+  const checkSuperAdminStatus = async () => {
+    try {
+      const response = await axios.get('/admin/super-admin-status');
+      setSuperAdminExists(response.data.exists);
+    } catch (error) {
+      console.error('Error checking super admin status:', error);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,7 +43,15 @@ const Login = () => {
     setLoading(false);
 
     if (result.success) {
-      const dashboardPath = result.user?.role === 'admin' ? '/admin' : '/employee';
+      const role = result.user?.role;
+      let dashboardPath = '/employee';
+      
+      if (['admin', 'super-admin', 'sub-admin'].includes(role)) {
+        dashboardPath = '/admin';
+      } else {
+        dashboardPath = '/employee';
+      }
+      
       navigate(dashboardPath);
     } else {
       setError(result.message || 'Login failed');
@@ -95,6 +118,37 @@ const Login = () => {
             >
               {loading ? 'Logging in...' : 'Sign In'}
             </Button>
+            
+            {!superAdminExists && (
+              <Box sx={{ mt: 2, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  No super admin found. Setup required.
+                </Typography>
+                <Button
+                  component={Link}
+                  to="/create-super-admin"
+                  variant="outlined"
+                  fullWidth
+                  sx={{ mt: 1 }}
+                >
+                  Create Super Admin
+                </Button>
+              </Box>
+            )}
+
+            <Box sx={{ mt: 2, textAlign: 'center' }}>
+              <Typography variant="body2" color="text.secondary">
+                Don't have an account?{' '}
+                <Button
+                  component={Link}
+                  to="/register"
+                  variant="text"
+                  sx={{ textTransform: 'none' }}
+                >
+                  Register as Employee
+                </Button>
+              </Typography>
+            </Box>
           </Box>
         </Paper>
       </Box>

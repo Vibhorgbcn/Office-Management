@@ -31,6 +31,15 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import BusinessIcon from '@mui/icons-material/Business';
 import PeopleIcon from '@mui/icons-material/People';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import GavelIcon from '@mui/icons-material/Gavel';
+import ScheduleIcon from '@mui/icons-material/Schedule';
+import AccessAlarmIcon from '@mui/icons-material/AccessAlarm';
+import DescriptionIcon from '@mui/icons-material/Description';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import ArticleIcon from '@mui/icons-material/Article';
+import EventIcon from '@mui/icons-material/Event';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import axios from 'axios';
@@ -135,14 +144,31 @@ const Layout = ({ children }) => {
     { text: 'Dashboard', icon: <DashboardIcon />, path: `/${user?.role}` },
     { text: 'Attendance', icon: <AccessTimeIcon />, path: `/${user?.role}/attendance` },
     { text: 'Cases', icon: <AssignmentIcon />, path: `/${user?.role}/cases` },
-    { text: 'Tasks', icon: <WorkIcon />, path: `/${user?.role}/work-assignments` },
+    { text: 'Tasks', icon: <WorkIcon />, path: `/${user?.role}/tasks` },
+    { text: 'Work Assignments', icon: <WorkIcon />, path: `/${user?.role}/work-assignments` },
   ];
 
   if (user?.role === 'admin') {
     menuItems.push(
       { text: 'Bills', icon: <ReceiptIcon />, path: '/admin/bills' },
+      { text: 'Clients', icon: <PeopleIcon />, path: '/admin/clients' },
+      { text: 'Causelists', icon: <CalendarTodayIcon />, path: '/admin/causelists' },
+      { text: 'Calendar', icon: <EventIcon />, path: '/admin/calendar' },
+      { text: 'Contracts', icon: <DescriptionIcon />, path: '/admin/contracts' },
+      { text: 'Legal Notices', icon: <ArticleIcon />, path: '/admin/legal-notices' },
+      { text: 'Expenses', icon: <AccountBalanceWalletIcon />, path: '/admin/expenses' },
       { text: 'Employees', icon: <PeopleIcon />, path: '/admin/employees' },
-      { text: 'Office Locations', icon: <BusinessIcon />, path: '/admin/office-locations' }
+      { text: 'HR Management', icon: <PeopleIcon />, path: '/admin/hr' },
+      { text: 'Payroll', icon: <AccountBalanceIcon />, path: '/admin/payroll' },
+      { text: 'Timesheets', icon: <ScheduleIcon />, path: '/admin/timesheets' },
+      { text: 'Office Locations', icon: <BusinessIcon />, path: '/admin/office-locations' },
+      { text: 'Court Locations', icon: <GavelIcon />, path: '/admin/court-locations' },
+      { text: 'Reminders', icon: <AccessAlarmIcon />, path: '/admin/reminders' }
+    );
+  } else {
+    menuItems.push(
+      { text: 'Timesheets', icon: <ScheduleIcon />, path: `/${user?.role}/timesheets` },
+      { text: 'Reminders', icon: <AccessAlarmIcon />, path: `/${user?.role}/reminders` }
     );
   }
 

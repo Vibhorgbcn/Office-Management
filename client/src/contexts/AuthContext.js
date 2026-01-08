@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('token', token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(user);
-      return { success: true };
+      return { success: true, user };
     } catch (error) {
       return {
         success: false,

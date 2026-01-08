@@ -23,6 +23,18 @@ app.use('/api/clients', require('./routes/clients'));
 app.use('/api/documents', require('./routes/documents'));
 app.use('/api/office-locations', require('./routes/officeLocations'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/hr', require('./routes/hr'));
+app.use('/api/payroll', require('./routes/payroll'));
+app.use('/api/timesheets', require('./routes/timesheets'));
+app.use('/api/court-locations', require('./routes/courtLocations'));
+app.use('/api/reminders', require('./routes/reminders'));
+app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/departments', require('./routes/departments'));
+app.use('/api/admin', require('./routes/admin'));
+app.use('/api/contracts', require('./routes/contracts'));
+app.use('/api/causelists', require('./routes/causelists'));
+app.use('/api/legal-notices', require('./routes/legalNotices'));
+app.use('/api/expenses', require('./routes/expenses'));
 
 // Serve uploaded files
 app.use('/uploads', express.static('uploads'));

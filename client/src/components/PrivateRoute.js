@@ -23,8 +23,26 @@ const PrivateRoute = ({ children, role }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (role && user.role !== role) {
-    return <Navigate to={`/${user.role === 'admin' ? 'admin' : 'employee'}`} replace />;
+  // Handle role checking - can be string or array
+  if (role) {
+    const allowedRoles = Array.isArray(role) ? role : [role];
+    
+    // Super-admin and sub-admin can access admin routes
+    if (allowedRoles.includes('admin') || allowedRoles.includes('super-admin') || allowedRoles.includes('sub-admin')) {
+      if (['admin', 'super-admin', 'sub-admin'].includes(user.role)) {
+        return children;
+      }
+    }
+    
+    // Check if user role matches any allowed role
+    if (!allowedRoles.includes(user.role)) {
+      // Redirect based on user role
+      if (['admin', 'super-admin', 'sub-admin'].includes(user.role)) {
+        return <Navigate to="/admin" replace />;
+      } else {
+        return <Navigate to="/employee" replace />;
+      }
+    }
   }
 
   return children;

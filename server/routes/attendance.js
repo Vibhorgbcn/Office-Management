@@ -3,7 +3,8 @@ const router = express.Router();
 const Attendance = require('../models/Attendance');
 const OfficeLocation = require('../models/OfficeLocation');
 const { auth } = require('../middleware/auth');
-const { validateAttendanceLocation } = require('../utils/geofencing');
+const { findNearestOffice } = require('../utils/geofencing');
+const { reverseGeocode } = require('../utils/geocoding');
 const { body, validationResult } = require('express-validator');
 
 // @route   POST /api/attendance/checkin
@@ -37,39 +38,46 @@ router.post('/checkin', [
     // Get GPS coordinates
     const { latitude, longitude, accuracy } = req.body;
 
-    // Get all active office locations
-    const officeLocations = await OfficeLocation.find({ isActive: true });
-
-    if (officeLocations.length === 0) {
-      return res.status(400).json({ 
-        message: 'No office locations configured. Please contact administrator.' 
-      });
-    }
-
-    // Validate GPS location against office geofences
-    const validation = validateAttendanceLocation(
-      latitude,
-      longitude,
-      accuracy,
-      officeLocations
-    );
-
-    if (!validation.valid) {
+    // Validate coordinates exist (accuracy not restricted - check-in allowed from anywhere)
+    if (!latitude || !longitude || typeof latitude !== 'number' || typeof longitude !== 'number') {
       return res.status(400).json({
-        message: validation.error,
-        details: {
-          accuracyRequired: validation.accuracyRequired,
-          nearestOffice: validation.nearestOffice,
-          distance: validation.distance,
-          allowedRadius: validation.allowedRadius,
-          officeCoordinates: validation.officeCoordinates,
-          yourCoordinates: validation.yourCoordinates
-        }
+        message: 'Valid GPS coordinates (latitude and longitude) are required.'
       });
     }
 
-    // Create attendance record
-    // Use the normalized 'today' variable (already set to start of day above)
+    // Find nearest office location for reference (optional - just for display, doesn't block)
+    let nearestOffice = null;
+    const officeLocations = await OfficeLocation.find({ isActive: true });
+    if (officeLocations.length > 0) {
+      nearestOffice = findNearestOffice(latitude, longitude, officeLocations);
+    }
+
+    // Get full address from coordinates (reverse geocoding)
+    // Always try to get address, even if accuracy is poor
+    let checkInAddress = null;
+    try {
+      console.log(`[Check-In] Reverse geocoding for coordinates: ${latitude}, ${longitude}, accuracy: ${accuracy}m`);
+      const addressData = await reverseGeocode(latitude, longitude);
+      if (addressData.error) {
+        // If geocoding failed, use coordinates with note
+        checkInAddress = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+      } else {
+        // Add accuracy note if accuracy is poor
+        if (accuracy > 1000) {
+          checkInAddress = `${addressData.fullAddress} (Approximate location, accuracy: ±${(accuracy / 1000).toFixed(1)}km)`;
+        } else {
+          checkInAddress = addressData.fullAddress;
+        }
+      }
+      console.log(`[Check-In] Geocoded address: ${checkInAddress}`);
+    } catch (error) {
+      console.error('Error getting address for check-in:', error);
+      // Fallback to coordinates if reverse geocoding fails
+      checkInAddress = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    }
+
+    // Create attendance record - allow check-in from anywhere
+    // Location is captured but geofence restriction is removed
     const attendance = new Attendance({
       userId: req.user._id,
       date: today, // Already normalized to start of day
@@ -77,7 +85,8 @@ router.post('/checkin', [
       punchInLat: latitude,
       punchInLng: longitude,
       punchInAccuracy: accuracy,
-      officeLocationId: validation.officeLocation._id,
+      punchInAddress: checkInAddress, // Store full address
+      officeLocationId: nearestOffice?._id || null, // Optional - just for reference
       status: 'present',
       biometricVerified: false,
       deviceInfo: {
@@ -92,12 +101,20 @@ router.post('/checkin', [
     const populated = await Attendance.findById(attendance._id)
       .populate('officeLocationId', 'name address latitude longitude');
 
+    // Format location message
+    const locationMsg = nearestOffice 
+      ? `from ${nearestOffice.distance ? `${Math.round(nearestOffice.distance)}m away from ${nearestOffice.name}` : nearestOffice.name}`
+      : `from location (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`;
+
     res.status(201).json({
-      message: `Checked in successfully at ${validation.officeLocation.name}`,
+      message: `Checked in successfully ${locationMsg}`,
       attendance: populated,
       location: {
-        office: validation.officeLocation.name,
-        distance: validation.distance
+        coordinates: { latitude, longitude },
+        nearestOffice: nearestOffice ? {
+          name: nearestOffice.name,
+          distance: nearestOffice.distance ? Math.round(nearestOffice.distance) : null
+        } : null
       }
     });
   } catch (error) {
@@ -138,29 +155,52 @@ router.post('/checkout', [
     // Get GPS coordinates
     const { latitude, longitude, accuracy } = req.body;
 
-    // Validate location (should be at same office location for checkout)
-    // Don't block based on accuracy - only check geofence
-    const officeLocations = await OfficeLocation.find({ isActive: true });
-    const validation = validateAttendanceLocation(
-      latitude,
-      longitude,
-      accuracy,
-      officeLocations
-    );
-
-    // Allow checkout even if slightly outside, but log it
-    if (!validation.valid && validation.distance > (validation.allowedRadius * 1.5)) {
+    // Validate coordinates exist (accuracy not restricted - check-in allowed from anywhere)
+    if (!latitude || !longitude || typeof latitude !== 'number' || typeof longitude !== 'number') {
       return res.status(400).json({
-        message: validation.error
+        message: 'Valid GPS coordinates (latitude and longitude) are required.'
       });
     }
 
-    // Update attendance
+    // Find nearest office location for reference (optional - just for display, doesn't block)
+    let nearestOffice = null;
+    const officeLocations = await OfficeLocation.find({ isActive: true });
+    if (officeLocations.length > 0) {
+      nearestOffice = findNearestOffice(latitude, longitude, officeLocations);
+    }
+
+    // Get full address from coordinates (reverse geocoding)
+    // Always try to get address, even if accuracy is poor
+    let checkOutAddress = null;
+    try {
+      console.log(`[Check-Out] Reverse geocoding for coordinates: ${latitude}, ${longitude}, accuracy: ${accuracy}m`);
+      const addressData = await reverseGeocode(latitude, longitude);
+      if (addressData.error) {
+        // If geocoding failed, use coordinates with note
+        checkOutAddress = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+      } else {
+        // Add accuracy note if accuracy is poor
+        if (accuracy > 1000) {
+          checkOutAddress = `${addressData.fullAddress} (Approximate location, accuracy: ±${(accuracy / 1000).toFixed(1)}km)`;
+        } else {
+          checkOutAddress = addressData.fullAddress;
+        }
+      }
+      console.log(`[Check-Out] Geocoded address: ${checkOutAddress}`);
+    } catch (error) {
+      console.error('Error getting address for check-out:', error);
+      // Fallback to coordinates if reverse geocoding fails
+      checkOutAddress = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    }
+
+    // Update attendance - allow checkout from anywhere
+    // Location is captured but geofence restriction is removed
     const checkOutTime = new Date();
     attendance.checkOut = checkOutTime;
     attendance.punchOutLat = latitude;
     attendance.punchOutLng = longitude;
     attendance.punchOutAccuracy = accuracy;
+    attendance.punchOutAddress = checkOutAddress; // Store full address
 
     // Calculate work hours
     const diffTime = checkOutTime - attendance.checkIn;
@@ -176,12 +216,24 @@ router.post('/checkout', [
     await attendance.save();
 
     const populated = await Attendance.findById(attendance._id)
-      .populate('officeLocationId', 'name address');
+      .populate('officeLocationId', 'name address latitude longitude');
+
+    // Format location message
+    const locationMsg = nearestOffice 
+      ? `from ${nearestOffice.distance ? `${Math.round(nearestOffice.distance)}m away from ${nearestOffice.name}` : nearestOffice.name}`
+      : `from location (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`;
 
     res.json({
-      message: 'Checked out successfully',
+      message: `Checked out successfully ${locationMsg}`,
       attendance: populated,
-      workHours: attendance.workHours
+      workHours: attendance.workHours,
+      location: {
+        coordinates: { latitude, longitude },
+        nearestOffice: nearestOffice ? {
+          name: nearestOffice.name,
+          distance: nearestOffice.distance ? Math.round(nearestOffice.distance) : null
+        } : null
+      }
     });
   } catch (error) {
     console.error(error);

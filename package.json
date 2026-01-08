@@ -9,7 +9,8 @@
     "client": "cd client && npm start",
     "install-server": "cd server && npm install",
     "install-client": "cd client && npm install",
-    "install-all": "npm install && npm run install-server && npm run install-client"
+    "install-all": "npm install && npm run install-server && npm run install-client",
+    "create-super-admin": "node server/scripts/createSuperAdmin.js"
   },
   "keywords": ["office-management", "law-office", "attendance", "case-management"],
   "author": "",

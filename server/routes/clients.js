@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Client = require('../models/Client');
+const ClientInteraction = require('../models/ClientInteraction');
 const { auth, adminOnly } = require('../middleware/auth');
 const { body, validationResult } = require('express-validator');
 
@@ -35,9 +36,9 @@ router.post('/', [
 });
 
 // @route   GET /api/clients
-// @desc    Get all clients
-// @access  Private/Admin
-router.get('/', auth, adminOnly, async (req, res) => {
+// @desc    Get all clients (Admin can see all, Employees can see for dropdowns)
+// @access  Private
+router.get('/', auth, async (req, res) => {
   try {
     const { clientType, search } = req.query;
     const query = {};
@@ -51,9 +52,22 @@ router.get('/', auth, adminOnly, async (req, res) => {
       ];
     }
 
+    // Employees can only see basic client info (name, id) for dropdowns
     const clients = await Client.find(query)
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 });
+
+    // If employee, return limited fields
+    if (req.user.role !== 'admin') {
+      const limitedClients = clients.map(client => ({
+        _id: client._id,
+        name: client.name,
+        phone: client.phone,
+        email: client.email,
+        clientType: client.clientType
+      }));
+      return res.json(limitedClients);
+    }
 
     res.json(clients);
   } catch (error) {
@@ -113,6 +127,57 @@ router.delete('/:id', auth, adminOnly, async (req, res) => {
 
     await client.deleteOne();
     res.json({ message: 'Client deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   GET /api/clients/:id/interactions
+// @desc    Get client interactions
+// @access  Private
+router.get('/:id/interactions', auth, async (req, res) => {
+  try {
+    const interactions = await ClientInteraction.find({ clientId: req.params.id })
+      .populate('userId', 'name email')
+      .populate('contactPersonId', 'name email')
+      .sort({ interactionDate: -1 });
+
+    res.json(interactions);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST /api/clients/:id/interactions
+// @desc    Create client interaction
+// @access  Private
+router.post('/:id/interactions', [
+  auth,
+  body('interactionType').isIn(['meeting', 'call', 'email', 'whatsapp', 'document-exchange', 'other']).withMessage('Invalid interaction type'),
+  body('subject').trim().notEmpty().withMessage('Subject is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const interaction = new ClientInteraction({
+      ...req.body,
+      clientId: req.params.id,
+      userId: req.user._id,
+      interactionDate: req.body.interactionDate ? new Date(req.body.interactionDate) : new Date()
+    });
+
+    await interaction.save();
+
+    const populated = await ClientInteraction.findById(interaction._id)
+      .populate('userId', 'name email')
+      .populate('contactPersonId', 'name email');
+
+    res.status(201).json(populated);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });

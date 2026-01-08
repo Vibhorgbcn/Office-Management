@@ -210,6 +210,48 @@ router.put('/:id', auth, async (req, res) => {
   }
 });
 
+// @route   POST /api/cases/:id/notes
+// @desc    Add note to case
+// @access  Private
+router.post('/:id/notes', [
+  auth,
+  body('content').trim().notEmpty().withMessage('Note content is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const caseDoc = await Case.findById(req.params.id);
+    if (!caseDoc) {
+      return res.status(404).json({ message: 'Case not found' });
+    }
+
+    // Check access
+    if (req.user.role !== 'admin' && caseDoc.assignedTo?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    caseDoc.notes.push({
+      content: req.body.content,
+      addedBy: req.user._id
+    });
+
+    await caseDoc.save();
+
+    const populatedCase = await Case.findById(caseDoc._id)
+      .populate('assignedBy', 'name email')
+      .populate('assignedTo', 'name email designation')
+      .populate('notes.addedBy', 'name email');
+
+    res.json(populatedCase);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // @route   DELETE /api/cases/:id
 // @desc    Delete case (Admin only)
 // @access  Private/Admin

@@ -78,6 +78,70 @@ const workAssignmentSchema = new mongoose.Schema({
   }],
   notes: {
     type: String
+  },
+  // Provakil-like enhancements
+  category: {
+    type: String,
+    enum: ['drafting', 'research', 'filing', 'hearing', 'consultation', 'documentation', 'other'],
+    default: 'other'
+  },
+  tags: [{
+    type: String,
+    trim: true
+  }],
+  progress: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: 0
+  },
+  dependencies: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'WorkAssignment'
+  }],
+  attachments: [{
+    name: String,
+    url: String,
+    uploadedAt: { type: Date, default: Date.now },
+    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  }],
+  comments: [{
+    content: String,
+    addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    addedAt: { type: Date, default: Date.now },
+    editedAt: Date
+  }],
+  updates: [{
+    type: {
+      type: String,
+      enum: ['status-change', 'assignment', 'due-date', 'priority', 'progress', 'comment', 'attachment'],
+      required: true
+    },
+    description: String,
+    changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    changedAt: { type: Date, default: Date.now },
+    oldValue: String,
+    newValue: String
+  }],
+  isRecurring: {
+    type: Boolean,
+    default: false
+  },
+  recurringPattern: {
+    frequency: { type: String, enum: ['daily', 'weekly', 'monthly', 'yearly'] },
+    interval: Number,
+    endDate: Date
+  },
+  templateId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'TaskTemplate',
+    default: null
+  },
+  estimatedCompletionDate: Date,
+  reminderDate: Date,
+  reminderSent: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

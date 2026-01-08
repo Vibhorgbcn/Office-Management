@@ -21,8 +21,18 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'senior-advocate', 'junior-advocate', 'clerk', 'intern', 'employee'],
+    enum: ['super-admin', 'sub-admin', 'admin', 'senior-advocate', 'junior-advocate', 'clerk', 'intern', 'employee'],
     default: 'employee'
+  },
+  department: {
+    type: String,
+    enum: ['Legal', 'HR', 'Accounts', 'Admin', 'Support'],
+    default: null
+  },
+  departmentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Department',
+    default: null
   },
   employeeId: {
     type: String,
@@ -42,9 +52,18 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  avatar: {
+    type: String
+  },
+  joiningDate: {
+    type: Date
+  },
   isActive: {
     type: Boolean,
     default: true
+  },
+  lastLogin: {
+    type: Date
   }
 }, {
   timestamps: true

@@ -5,6 +5,8 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider } from './contexts/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 import Login from './pages/Login';
+import Register from './pages/Register';
+import CreateSuperAdmin from './pages/CreateSuperAdmin';
 import AdminDashboard from './pages/AdminDashboard';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import Attendance from './pages/Attendance';
@@ -22,10 +24,12 @@ function App() {
         <Router>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/create-super-admin" element={<CreateSuperAdmin />} />
             <Route
               path="/admin/*"
               element={
-                <PrivateRoute role="admin">
+                <PrivateRoute role={['admin', 'super-admin', 'sub-admin']}>
                   <AdminDashboard />
                 </PrivateRoute>
               }
@@ -33,7 +37,7 @@ function App() {
             <Route
               path="/employee/*"
               element={
-                <PrivateRoute role="employee">
+                <PrivateRoute role={['employee', 'senior-advocate', 'junior-advocate', 'clerk', 'intern']}>
                   <EmployeeDashboard />
                 </PrivateRoute>
               }

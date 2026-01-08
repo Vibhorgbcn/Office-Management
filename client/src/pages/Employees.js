@@ -29,8 +29,14 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CancelIcon from '@mui/icons-material/Cancel';
+import Badge from '@mui/material/Badge';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { format } from 'date-fns';
 
 const Employees = () => {
   const { user } = useAuth();
@@ -43,6 +49,7 @@ const Employees = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [activeTab, setActiveTab] = useState(0);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -61,6 +68,7 @@ const Employees = () => {
   const fetchEmployees = async () => {
     try {
       const response = await axios.get('/users');
+      console.log('Fetched employees:', response.data);
       setEmployees(response.data);
     } catch (error) {
       console.error('Error fetching employees:', error);
@@ -190,6 +198,62 @@ const Employees = () => {
     return colorMap[role] || 'default';
   };
 
+  const handleApprove = async (employeeId) => {
+    try {
+      setLoading(true);
+      await axios.put(`/users/${employeeId}`, { isActive: true });
+      setSuccess('Employee approved successfully');
+      fetchEmployees();
+    } catch (error) {
+      setError(error.response?.data?.message || 'Failed to approve employee');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReject = async (employeeId) => {
+    if (!window.confirm('Are you sure you want to reject this employee registration? This action cannot be undone.')) {
+      return;
+    }
+    try {
+      setLoading(true);
+      await axios.delete(`/users/${employeeId}`);
+      setSuccess('Employee registration rejected');
+      fetchEmployees();
+    } catch (error) {
+      setError(error.response?.data?.message || 'Failed to reject employee');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filter pending employees - inactive employees with role 'employee' (self-registered)
+  const pendingEmployees = employees.filter(emp => {
+    // Check if employee is inactive
+    const isInactive = emp.isActive === false || emp.isActive === undefined;
+    // Check if role is employee (self-registered) or if it's a new registration
+    const isEmployeeRole = emp.role === 'employee' || !emp.role;
+    const isPending = isInactive && isEmployeeRole;
+    return isPending;
+  });
+  const activeEmployees = employees.filter(emp => emp.isActive === true);
+  const inactiveEmployees = employees.filter(emp => emp.isActive === false || emp.isActive === undefined);
+
+  // Debug logging
+  console.log('Total employees:', employees.length);
+  console.log('Pending employees:', pendingEmployees.length);
+  console.log('Pending employees data:', pendingEmployees);
+
+  const getFilteredEmployees = () => {
+    switch (activeTab) {
+      case 0: return employees; // All
+      case 1: return pendingEmployees; // Pending
+      case 2: return activeEmployees; // Active
+      case 3: return inactiveEmployees; // Inactive
+      default: return employees;
+    }
+  };
+
   return (
     <Box sx={{ width: '100%', maxWidth: '100%', px: { xs: 1, sm: 0 } }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: { xs: 2, sm: 3 }, flexWrap: 'wrap', gap: 2 }}>
@@ -218,12 +282,159 @@ const Employees = () => {
         </Alert>
       )}
 
+      {/* Pending Approvals Alert - Show when there are pending */}
+      {pendingEmployees.length > 0 && (
+        <Alert 
+          severity="warning" 
+          sx={{ mb: 3 }}
+          action={
+            <Button 
+              color="inherit" 
+              size="small" 
+              onClick={() => setActiveTab(1)}
+            >
+              Review {pendingEmployees.length} Pending
+            </Button>
+          }
+        >
+          <Typography variant="body1" fontWeight={600}>
+            {pendingEmployees.length} new employee registration{pendingEmployees.length > 1 ? 's' : ''} awaiting approval
+          </Typography>
+        </Alert>
+      )}
+
+      {/* Pending Approvals Card - Always Visible */}
+      <Card sx={{ 
+          width: '100%', 
+          maxWidth: '100%', 
+          mb: 3, 
+          bgcolor: pendingEmployees.length > 0 ? 'warning.light' : 'background.paper',
+          border: pendingEmployees.length > 0 ? '2px solid' : '1px solid',
+          borderColor: pendingEmployees.length > 0 ? 'warning.main' : 'divider'
+        }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Badge badgeContent={pendingEmployees.length} color="error">
+                  <Typography variant="h6" fontWeight={700} sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                    Pending Approvals
+                  </Typography>
+                </Badge>
+              </Box>
+            </Box>
+            {pendingEmployees.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <CheckCircleIcon sx={{ fontSize: 48, color: 'success.main', mb: 2 }} />
+                <Typography variant="body1" color="text.secondary" gutterBottom>
+                  No pending approvals
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  All employee registrations have been processed
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  {pendingEmployees.length} new employee registration{pendingEmployees.length > 1 ? 's' : ''} awaiting your approval
+                </Typography>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Name</TableCell>
+                        <TableCell>Email</TableCell>
+                        <TableCell>Phone</TableCell>
+                        <TableCell>Designation</TableCell>
+                        <TableCell>Registered</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {pendingEmployees.map((employee) => (
+                        <TableRow key={employee._id} sx={{ bgcolor: 'background.paper' }}>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight={500}>
+                              {employee.name}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>{employee.email}</TableCell>
+                          <TableCell>{employee.phone || '-'}</TableCell>
+                          <TableCell>{employee.designation || '-'}</TableCell>
+                          <TableCell>
+                            {employee.createdAt ? format(new Date(employee.createdAt), 'MMM dd, yyyy') : '-'}
+                          </TableCell>
+                          <TableCell align="right">
+                            <Tooltip title="Approve">
+                              <IconButton
+                                size="small"
+                                color="success"
+                                onClick={() => handleApprove(employee._id)}
+                                disabled={loading}
+                                sx={{ mr: 1 }}
+                              >
+                                <CheckCircleIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Reject">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleReject(employee._id)}
+                                disabled={loading}
+                              >
+                                <CancelIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
+            )}
+          </CardContent>
+      </Card>
+
       <Card sx={{ width: '100%', maxWidth: '100%' }}>
         <CardContent>
-          <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-            All Employees
-          </Typography>
-          {employees.length === 0 ? (
+          <Box sx={{ mb: 2 }}>
+            <Tabs 
+              value={activeTab} 
+              onChange={(e, newValue) => setActiveTab(newValue)}
+              sx={{ borderBottom: 1, borderColor: 'divider' }}
+            >
+              <Tab 
+                label={
+                  <Badge badgeContent={employees.length} color="primary" max={999}>
+                    All
+                  </Badge>
+                } 
+              />
+              <Tab 
+                label={
+                  <Badge badgeContent={pendingEmployees.length} color="error" max={999}>
+                    Pending
+                  </Badge>
+                } 
+              />
+              <Tab 
+                label={
+                  <Badge badgeContent={activeEmployees.length} color="success" max={999}>
+                    Active
+                  </Badge>
+                } 
+              />
+              <Tab 
+                label={
+                  <Badge badgeContent={inactiveEmployees.length} color="default" max={999}>
+                    Inactive
+                  </Badge>
+                } 
+              />
+            </Tabs>
+          </Box>
+          {getFilteredEmployees().length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <PersonAddIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
               <Typography variant="body1" color="text.secondary" gutterBottom>
@@ -254,7 +465,7 @@ const Employees = () => {
                 </TableRow>
               </TableHead>
                 <TableBody>
-                  {employees.map((employee) => (
+                  {getFilteredEmployees().map((employee) => (
                     <TableRow key={employee._id}>
                       <TableCell>
                         <Typography variant="body2" fontWeight={500}>
@@ -303,6 +514,32 @@ const Employees = () => {
                         />
                       </TableCell>
                       <TableCell align="right">
+                        {!employee.isActive && employee.role === 'employee' && (
+                          <>
+                            <Tooltip title="Approve">
+                              <IconButton
+                                size="small"
+                                color="success"
+                                onClick={() => handleApprove(employee._id)}
+                                disabled={loading}
+                                sx={{ mr: 0.5 }}
+                              >
+                                <CheckCircleIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Reject">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleReject(employee._id)}
+                                disabled={loading}
+                                sx={{ mr: 0.5 }}
+                              >
+                                <CancelIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </>
+                        )}
                         <Tooltip title="Edit">
                           <IconButton
                             size="small"

@@ -69,6 +69,61 @@ router.post('/register', [
   }
 });
 
+// @route   POST /api/auth/register-employee
+// @desc    Public employee self-registration (requires admin approval)
+// @access  Public
+router.post('/register-employee', [
+  body('name').trim().notEmpty().withMessage('Name is required'),
+  body('email').isEmail().withMessage('Please provide a valid email'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('phone').optional().trim(),
+  body('designation').optional().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { name, email, password, phone, designation } = req.body;
+
+    // Check if user already exists
+    let user = await User.findOne({ email });
+    if (user) {
+      return res.status(400).json({ message: 'Email already registered' });
+    }
+
+    // Create new employee account (inactive by default, requires admin approval)
+    user = new User({
+      name,
+      email,
+      password,
+      role: 'employee',
+      phone,
+      designation,
+      isActive: false // Requires admin approval
+    });
+
+    await user.save();
+
+    res.status(201).json({
+      message: 'Registration successful! Your account is pending admin approval. You will be notified once approved.',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Email already registered' });
+    }
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // @route   POST /api/auth/login
 // @desc    Login user
 // @access  Public

@@ -26,8 +26,12 @@ import WarningIcon from '@mui/icons-material/Warning';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { format } from 'date-fns';
 import axios from 'axios';
+import { useAuth } from '../../contexts/AuthContext';
+import SuperAdminDashboard from './SuperAdminDashboard';
+import SubAdminDashboard from './SubAdminDashboard';
 
 const DashboardHome = () => {
+  const { user } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
@@ -45,8 +49,21 @@ const DashboardHome = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    // Only fetch data if not super-admin or sub-admin
+    if (user?.role !== 'super-admin' && user?.role !== 'sub-admin') {
+      fetchDashboardData();
+    }
+  }, [user]);
+
+  // Render Super Admin Dashboard
+  if (user?.role === 'super-admin') {
+    return <SuperAdminDashboard />;
+  }
+
+  // Render Sub Admin Dashboard
+  if (user?.role === 'sub-admin') {
+    return <SubAdminDashboard />;
+  }
 
   const fetchDashboardData = async () => {
     try {

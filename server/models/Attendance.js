@@ -29,6 +29,10 @@ const attendanceSchema = new mongoose.Schema({
   punchInAccuracy: {
     type: Number // in meters
   },
+  punchInAddress: {
+    type: String, // Full address from reverse geocoding
+    default: null
+  },
   punchOutLat: {
     type: Number
   },
@@ -38,17 +42,46 @@ const attendanceSchema = new mongoose.Schema({
   punchOutAccuracy: {
     type: Number // in meters
   },
+  punchOutAddress: {
+    type: String, // Full address from reverse geocoding
+    default: null
+  },
   officeLocationId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'OfficeLocation'
+  },
+  courtLocationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CourtLocation'
+  },
+  clientLocationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Client'
+  },
+  locationType: {
+    type: String,
+    enum: ['office', 'court', 'client', 'remote', 'field'],
+    default: 'office'
   },
   workHours: {
     type: Number, // in hours
     default: 0
   },
+  overtimeHours: {
+    type: Number,
+    default: 0
+  },
+  lateArrivalMinutes: {
+    type: Number,
+    default: 0
+  },
+  earlyExitMinutes: {
+    type: Number,
+    default: 0
+  },
   status: {
     type: String,
-    enum: ['present', 'absent', 'half-day', 'late'],
+    enum: ['present', 'absent', 'half-day', 'late', 'on-leave'],
     default: 'present'
   },
   biometricVerified: {

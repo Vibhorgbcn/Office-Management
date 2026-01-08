@@ -95,22 +95,17 @@ const Attendance = () => {
             accuracy: position.coords.accuracy
           };
           
-          // Store location - backend will validate geofence based on coordinates
-          // Don't reject based on accuracy alone - let backend check distance
+          console.log('GPS Location received:', {
+            lat: location.latitude,
+            lng: location.longitude,
+            accuracy: location.accuracy,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Store location - no accuracy warnings, check-in allowed from anywhere
           setCurrentLocation(location);
           setLocationStatus('success');
-          
-          // Show warning for poor accuracy but don't block
-          if (location.accuracy > 1000) {
-            // Very poor accuracy (network-based location)
-            setLocationError(`Location accuracy is ${(location.accuracy / 1000).toFixed(1)}km (network-based). The system will verify you're within the office geofence.`);
-          } else if (location.accuracy > 200) {
-            // Poor accuracy
-            setLocationError(`GPS accuracy is ${Math.round(location.accuracy)}m. The system will verify you're within the office geofence.`);
-          } else {
-            // Acceptable accuracy
-            setLocationError('');
-          }
+          setLocationError(''); // Clear any previous errors
           
           resolve(location);
         },
@@ -253,8 +248,15 @@ const Attendance = () => {
     setSuccess('');
     
     try {
-      // Get GPS location first
+      // Get fresh GPS location first (force new reading)
       const location = await getCurrentLocation();
+      
+      // Log coordinates for debugging
+      console.log('Check-In Coordinates:', {
+        lat: location.latitude,
+        lng: location.longitude,
+        accuracy: location.accuracy
+      });
       
       // Send check-in request with GPS coordinates
       const response = await axios.post('/attendance/checkin', {
@@ -265,7 +267,7 @@ const Attendance = () => {
       
       setTodayAttendance(response.data.attendance);
       setSuccess(response.data.message || 'Checked in successfully!');
-      // Clear location error on successful check-in - coordinates matched office location
+      // Clear location error on successful check-in
       setLocationError('');
       fetchAttendance();
     } catch (error) {
@@ -309,8 +311,15 @@ const Attendance = () => {
     setSuccess('');
     
     try {
-      // Get GPS location first
+      // Get fresh GPS location first (force new reading)
       const location = await getCurrentLocation();
+      
+      // Log coordinates for debugging
+      console.log('Check-Out Coordinates:', {
+        lat: location.latitude,
+        lng: location.longitude,
+        accuracy: location.accuracy
+      });
       
       // Send check-out request with GPS coordinates
       const response = await axios.post('/attendance/checkout', {
@@ -538,15 +547,33 @@ const Attendance = () => {
                                 <Typography variant="body2" color="text.secondary">-</Typography>
                               )}
                             </TableCell>
-                            <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
-                              {empAttendance?.officeLocationId?.name ? (
-                                <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
-                                  {empAttendance.officeLocationId.name}
-                                </Typography>
-                              ) : (
-                                <Typography variant="body2" color="text.secondary">-</Typography>
-                              )}
-                            </TableCell>
+                                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                                  <Box>
+                                    {empAttendance?.punchInAddress && (
+                                      <Box sx={{ mb: empAttendance?.punchOutAddress ? 1 : 0 }}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 600, display: 'block' }}>
+                                          Check In:
+                                        </Typography>
+                                        <Typography variant="caption" color="text.primary" sx={{ fontSize: '0.75rem', display: 'block' }}>
+                                          {empAttendance.punchInAddress}
+                                        </Typography>
+                                      </Box>
+                                    )}
+                                    {empAttendance?.punchOutAddress && (
+                                      <Box>
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 600, display: 'block' }}>
+                                          Check Out:
+                                        </Typography>
+                                        <Typography variant="caption" color="text.primary" sx={{ fontSize: '0.75rem', display: 'block' }}>
+                                          {empAttendance.punchOutAddress}
+                                        </Typography>
+                                      </Box>
+                                    )}
+                                    {!empAttendance?.punchInAddress && !empAttendance?.punchOutAddress && (
+                                      <Typography variant="body2" color="text.secondary">-</Typography>
+                                    )}
+                                  </Box>
+                                </TableCell>
                           </TableRow>
                         );
                       })
@@ -596,12 +623,8 @@ const Attendance = () => {
           <Box sx={{ mb: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, flexWrap: 'wrap', gap: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
-                {(locationStatus === 'success' && currentLocation && currentLocation.accuracy <= 50) ? (
+                {locationStatus === 'success' ? (
                   <LocationOn color="success" />
-                ) : (locationStatus === 'success' && currentLocation && currentLocation.accuracy > 50 && currentLocation.accuracy <= 200) ? (
-                  <LocationOn sx={{ color: 'warning.main' }} />
-                ) : (locationStatus === 'success' && currentLocation && currentLocation.accuracy > 200) ? (
-                  <LocationOn sx={{ color: 'error.main' }} />
                 ) : locationStatus === 'error' ? (
                   <LocationOff color="error" />
                 ) : locationStatus === 'fetching' ? (
@@ -611,12 +634,8 @@ const Attendance = () => {
                 )}
                 <Typography variant="body2" fontWeight="bold">
                   GPS Status: {
-                    locationStatus === 'fetching' ? 'Fetching location... (may take up to 45 seconds)' :
-                    locationStatus === 'success' && currentLocation && currentLocation.accuracy <= 50 ? 'Location available ✓' :
-                    locationStatus === 'success' && currentLocation && currentLocation.accuracy > 50 && currentLocation.accuracy <= 200 ? 'Location available (Moderate)' :
-                    locationStatus === 'success' && currentLocation && currentLocation.accuracy > 200 && currentLocation.accuracy <= 1000 ? 'Location available (Network-based)' :
-                    locationStatus === 'success' && currentLocation && currentLocation.accuracy > 1000 ? 'Location available (Very Low Accuracy)' :
-                    locationStatus === 'success' ? 'Location available' :
+                    locationStatus === 'fetching' ? 'Fetching location...' :
+                    locationStatus === 'success' ? 'Location available ✓' :
                     locationStatus === 'error' ? 'Location unavailable' :
                     'Not checked'
                   }
@@ -638,53 +657,35 @@ const Attendance = () => {
               <Box sx={{ mt: 1 }}>
                 <Typography 
                   variant="caption" 
-                  color={currentLocation.accuracy <= 50 ? 'success.main' : currentLocation.accuracy <= 200 ? 'warning.main' : 'error.main'} 
+                  color="text.secondary"
                   display="block"
-                  fontWeight={currentLocation.accuracy > 50 ? 600 : 400}
                 >
                   Accuracy: {currentLocation.accuracy >= 1000 ? `±${(currentLocation.accuracy / 1000).toFixed(1)}km` : `±${Math.round(currentLocation.accuracy)}m`}
-                  {currentLocation.accuracy > 50 && currentLocation.accuracy <= 200 && ' (Moderate)'}
-                  {currentLocation.accuracy > 200 && currentLocation.accuracy <= 1000 && ' (Network-based)'}
-                  {currentLocation.accuracy > 1000 && ' (Very Low - Network-based)'}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" display="block">
                   Coordinates: {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
                 </Typography>
-                {currentLocation.accuracy > 50 && currentLocation.accuracy <= 200 && (
-                  <Box sx={{ mt: 1, p: 1.5, bgcolor: 'warning.light', borderRadius: 1 }}>
-                    <Typography variant="caption" color="warning.dark" sx={{ display: 'block', fontWeight: 600 }}>
-                      ⚠️ GPS Accuracy Moderate
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.75rem', mt: 0.5 }}>
-                      Your GPS accuracy is {Math.round(currentLocation.accuracy)}m. You can try to check in - the system will verify you're within the office geofence.
-                    </Typography>
-                  </Box>
-                )}
-                {currentLocation.accuracy > 200 && !todayAttendance && (
-                  <Box sx={{ mt: 1, p: 1.5, bgcolor: currentLocation.accuracy > 1000 ? 'warning.light' : 'info.light', borderRadius: 1 }}>
-                    <Typography variant="caption" color={currentLocation.accuracy > 1000 ? 'warning.dark' : 'info.dark'} sx={{ display: 'block', fontWeight: 600 }}>
-                      {currentLocation.accuracy > 1000 ? 'ℹ️ Network-Based Location' : 'ℹ️ GPS Accuracy Moderate'}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.75rem', mt: 0.5 }}>
-                      {currentLocation.accuracy > 1000 
-                        ? `Your location accuracy is ${(currentLocation.accuracy / 1000).toFixed(1)}km (network-based). The system will verify your coordinates are within the office geofence. If you're at the office location, you can check in.`
-                        : `Your GPS accuracy is ${Math.round(currentLocation.accuracy)}m. The system will verify you're within the office geofence. If you're at the office location, you can check in.`
-                      }
+                {/* Simple info message - check-in allowed from anywhere */}
+                {currentLocation && !todayAttendance && (
+                  <Box sx={{ mt: 1, p: 1.5, bgcolor: 'background.default', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', display: 'block', mb: 0.5 }}>
+                      Your location will be recorded when you check in. You can check in from anywhere.
                     </Typography>
                     {currentLocation.accuracy > 1000 && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.75rem', mt: 1, fontStyle: 'italic' }}>
-                        💡 Tip: For better GPS accuracy, try moving near a window or going outdoors, then click "Get Location" again.
+                      <Typography variant="caption" color="warning.main" sx={{ fontSize: '0.75rem', fontWeight: 600, display: 'block' }}>
+                        ⚠️ Note: Network-based location detected (accuracy: ±{(currentLocation.accuracy / 1000).toFixed(1)}km). 
+                        The address shown may be approximate. For accurate location, enable GPS on your device.
                       </Typography>
                     )}
                   </Box>
                 )}
-                {currentLocation.accuracy > 200 && todayAttendance && (
+                {currentLocation && todayAttendance && (
                   <Box sx={{ mt: 1, p: 1.5, bgcolor: 'success.light', borderRadius: 1 }}>
                     <Typography variant="caption" color="success.dark" sx={{ display: 'block', fontWeight: 600 }}>
-                      ✅ Location Verified
+                      ✅ Location Recorded
                     </Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.75rem', mt: 0.5 }}>
-                      Your coordinates were verified and matched the office location. Check-in was successful despite network-based location accuracy.
+                      Your location has been recorded successfully.
                     </Typography>
                   </Box>
                 )}
@@ -752,9 +753,19 @@ const Attendance = () => {
                 <Typography variant="body2">
                   Check In: {format(new Date(todayAttendance.checkIn), 'HH:mm:ss')}
                 </Typography>
-                {todayAttendance.officeLocationId && (
-                  <Typography variant="body2" color="text.secondary">
-                    Location: {todayAttendance.officeLocationId?.name || 'Office'}
+                {todayAttendance.punchInAddress && (
+                  <Typography variant="body2" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                    Check In Location: {todayAttendance.punchInAddress}
+                  </Typography>
+                )}
+                {todayAttendance.punchOutAddress && (
+                  <Typography variant="body2" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                    Check Out Location: {todayAttendance.punchOutAddress}
+                  </Typography>
+                )}
+                {!todayAttendance.punchInAddress && !todayAttendance.punchOutAddress && todayAttendance.punchInLat && (
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                    Coordinates: {todayAttendance.punchInLat.toFixed(6)}, {todayAttendance.punchInLng.toFixed(6)}
                   </Typography>
                 )}
                 {todayAttendance.checkOut && (
@@ -810,7 +821,36 @@ const Attendance = () => {
                       {record.checkOut ? format(new Date(record.checkOut), 'HH:mm:ss') : '-'}
                     </TableCell>
                     <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
-                      {record.officeLocationId?.name || '-'}
+                      <Box>
+                        {record.punchInAddress && (
+                          <Box sx={{ mb: record.punchOutAddress ? 1 : 0 }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 600, display: 'block' }}>
+                              Check In:
+                            </Typography>
+                            <Typography variant="caption" color="text.primary" sx={{ fontSize: '0.75rem', display: 'block' }}>
+                              {record.punchInAddress}
+                            </Typography>
+                          </Box>
+                        )}
+                        {record.punchOutAddress && (
+                          <Box>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 600, display: 'block' }}>
+                              Check Out:
+                            </Typography>
+                            <Typography variant="caption" color="text.primary" sx={{ fontSize: '0.75rem', display: 'block' }}>
+                              {record.punchOutAddress}
+                            </Typography>
+                          </Box>
+                        )}
+                        {!record.punchInAddress && !record.punchOutAddress && record.punchInLat && (
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                            {record.punchInLat.toFixed(6)}, {record.punchInLng.toFixed(6)}
+                          </Typography>
+                        )}
+                        {!record.punchInAddress && !record.punchOutAddress && !record.punchInLat && (
+                          <Typography variant="body2" color="text.secondary">-</Typography>
+                        )}
+                      </Box>
                     </TableCell>
                     {/* Mobile: Show compact info */}
                     <TableCell sx={{ display: { xs: 'table-cell', sm: 'none' } }}>
@@ -819,9 +859,14 @@ const Attendance = () => {
                           Out: {format(new Date(record.checkOut), 'HH:mm')}
                         </Typography>
                       )}
-                      {record.officeLocationId && (
-                        <Typography variant="caption" color="text.secondary" display="block">
-                          {record.officeLocationId.name}
+                      {record.punchInAddress && (
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', mt: 0.5 }}>
+                          📍 In: {record.punchInAddress.length > 40 ? record.punchInAddress.substring(0, 40) + '...' : record.punchInAddress}
+                        </Typography>
+                      )}
+                      {record.punchOutAddress && (
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.7rem', mt: 0.5 }}>
+                          📍 Out: {record.punchOutAddress.length > 40 ? record.punchOutAddress.substring(0, 40) + '...' : record.punchOutAddress}
                         </Typography>
                       )}
                     </TableCell>

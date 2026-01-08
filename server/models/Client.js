@@ -42,6 +42,19 @@ const clientSchema = new mongoose.Schema({
     trim: true,
     uppercase: true
   },
+  organizationName: {
+    type: String,
+    trim: true
+  },
+  assignedTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  status: {
+    type: String,
+    enum: ['active', 'inactive', 'prospect'],
+    default: 'active'
+  },
   notes: {
     type: String
   },

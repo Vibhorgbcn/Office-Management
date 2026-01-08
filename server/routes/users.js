@@ -43,11 +43,39 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // If password is provided, update it
+    if (password) {
+      user.password = password;
+    }
+
     Object.assign(user, updateData);
     await user.save();
 
     const userResponse = await User.findById(user._id).select('-password');
     res.json(userResponse);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   DELETE /api/users/:id
+// @desc    Delete user (reject registration)
+// @access  Private/Admin
+router.delete('/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Prevent deleting admin users
+    if (['admin', 'super-admin', 'sub-admin'].includes(user.role)) {
+      return res.status(403).json({ message: 'Cannot delete admin users' });
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: 'User deleted successfully' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
