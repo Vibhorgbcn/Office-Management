@@ -568,6 +568,7 @@ const Layout = ({ children }) => {
           minHeight: '100vh',
           bgcolor: 'background.default',
           overflowX: 'hidden',
+          overflowY: 'visible',
           boxSizing: 'border-box',
         }}
       >

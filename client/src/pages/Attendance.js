@@ -54,6 +54,7 @@ const Attendance = () => {
     if (user?.role === 'admin') {
       const loadAdminData = async () => {
         const empData = await fetchEmployees();
+        console.log('Total employees loaded:', empData.length);
         setEmployees(empData);
         // Fetch attendance after employees are loaded
         await fetchAllEmployeesAttendance(empData);
@@ -379,7 +380,7 @@ const Attendance = () => {
   // Admin View
   if (user?.role === 'admin') {
     return (
-      <Box sx={{ width: '100%', maxWidth: '100%', px: { xs: 1, sm: 0 } }}>
+      <Box sx={{ width: '100%', maxWidth: '100%', px: { xs: 1, sm: 0 }, minHeight: 'auto', pb: { xs: 4, sm: 0 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: { xs: 2, sm: 3 }, flexWrap: 'wrap', gap: 2 }}>
           <Typography variant="h4" sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}>
             Employee Attendance
@@ -447,133 +448,167 @@ const Attendance = () => {
         </Grid>
 
         {/* Employees Attendance Table */}
-        <Card>
-          <CardContent>
+        <Card sx={{ width: '100%', mb: { xs: 2, sm: 0 } }}>
+          <CardContent sx={{ p: { xs: 1.5, sm: 3 }, '&:last-child': { pb: { xs: 1.5, sm: 3 } } }}>
             <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, mb: 2 }}>
               Attendance for {format(new Date(selectedDate), 'MMMM dd, yyyy')}
             </Typography>
-            
+            {employees.length > 0 && (
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                Showing {employees.length} employee{employees.length !== 1 ? 's' : ''}
+              </Typography>
+            )}
             {loading ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                 <CircularProgress />
               </Box>
             ) : (
-              <TableContainer component={Paper} sx={{ maxHeight: { xs: 'calc(100vh - 500px)', sm: 'none' }, overflowX: 'auto' }}>
-                <Table size={isMobile ? 'small' : 'medium'} stickyHeader>
+              <TableContainer 
+                component={Paper} 
+                elevation={0}
+                sx={{ 
+                  overflowX: 'auto',
+                  overflowY: { xs: 'auto', sm: 'visible' },
+                  maxHeight: { xs: 'calc(100vh - 350px)', sm: 'none' },
+                  width: '100%',
+                  WebkitOverflowScrolling: 'touch',
+                  '-webkit-overflow-scrolling': 'touch',
+                  position: 'relative',
+                  '& .MuiTable-root': {
+                    minWidth: { xs: 600, sm: 'auto' },
+                    width: '100%'
+                  },
+                  '& .MuiTableBody-root': {
+                    display: 'table-row-group'
+                  }
+                }}
+              >
+                <Table size={isMobile ? 'small' : 'medium'} stickyHeader={!isMobile}>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Employee</TableCell>
-                      <TableCell>Designation</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Check In</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Check Out</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>Work Hours</TableCell>
-                      <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Location</TableCell>
+                      <TableCell sx={{ minWidth: { xs: 120, sm: 'auto' } }}>Employee</TableCell>
+                      <TableCell sx={{ minWidth: { xs: 100, sm: 'auto' } }}>Designation</TableCell>
+                      <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>Check In</TableCell>
+                      <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>Check Out</TableCell>
+                      <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>Status</TableCell>
+                      <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>Work Hours</TableCell>
+                      <TableCell sx={{ minWidth: { xs: 120, sm: 'auto' } }}>Location</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {employees.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                        <TableCell colSpan={isMobile ? 3 : 7} align="center" sx={{ py: 4 }}>
                           <Typography variant="body2" color="text.secondary">
                             No employees found
                           </Typography>
                         </TableCell>
                       </TableRow>
                     ) : (
-                      employees.map((employee) => {
+                      employees.map((employee, index) => {
                         const empAttendance = getEmployeeAttendance(employee._id);
                         const status = getStatusLabel(empAttendance);
                         const statusColor = getStatusColor(empAttendance?.status || 'absent');
                         
                         return (
-                          <TableRow key={employee._id}>
-                            <TableCell>
+                          <TableRow 
+                            key={employee._id} 
+                            sx={{ 
+                              '&:hover': { bgcolor: 'action.hover' },
+                              display: 'table-row !important',
+                              visibility: 'visible !important',
+                              height: 'auto',
+                              minHeight: '48px'
+                            }}
+                          >
+                            <TableCell sx={{ minWidth: { xs: 120, sm: 'auto' } }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: '0.875rem' }}>
+                                <Avatar sx={{ width: { xs: 28, sm: 32 }, height: { xs: 28, sm: 32 }, bgcolor: 'primary.main', fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                                   {employee.name?.charAt(0).toUpperCase()}
                                 </Avatar>
-                                <Box>
-                                  <Typography variant="body2" fontWeight={500}>
+                                <Box sx={{ minWidth: 0, flex: 1 }}>
+                                  <Typography variant="body2" fontWeight={500} sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                                     {employee.name}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' } }}>
-                                    {empAttendance?.checkIn ? format(new Date(empAttendance.checkIn), 'HH:mm') : '-'}
                                   </Typography>
                                 </Box>
                               </Box>
                             </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">
+                            <TableCell sx={{ minWidth: { xs: 100, sm: 'auto' } }}>
+                              <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                                 {employee.designation || employee.role}
                               </Typography>
                             </TableCell>
-                            <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                            <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>
                               {empAttendance?.checkIn ? (
-                                <Typography variant="body2">
-                                  {format(new Date(empAttendance.checkIn), 'HH:mm:ss')}
+                                <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
+                                  {format(new Date(empAttendance.checkIn), isMobile ? 'HH:mm' : 'HH:mm:ss')}
                                 </Typography>
                               ) : (
-                                <Typography variant="body2" color="text.secondary">
+                                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
                                   -
                                 </Typography>
                               )}
                             </TableCell>
-                            <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                            <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>
                               {empAttendance?.checkOut ? (
-                                <Typography variant="body2">
-                                  {format(new Date(empAttendance.checkOut), 'HH:mm:ss')}
+                                <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
+                                  {format(new Date(empAttendance.checkOut), isMobile ? 'HH:mm' : 'HH:mm:ss')}
                                 </Typography>
                               ) : (
-                                <Typography variant="body2" color="text.secondary">
-                                  {empAttendance?.checkIn ? 'Not checked out' : '-'}
+                                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
+                                  {empAttendance?.checkIn ? (isMobile ? '-' : 'Not checked out') : '-'}
                                 </Typography>
                               )}
                             </TableCell>
-                            <TableCell>
+                            <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>
                               <Chip
                                 label={status}
                                 color={statusColor}
                                 size="small"
                                 icon={status === 'Absent' ? <PersonOff /> : <Person />}
+                                sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}
                               />
                             </TableCell>
-                            <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>
+                            <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>
                               {empAttendance?.workHours ? (
-                                <Typography variant="body2">
+                                <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
                                   {empAttendance.workHours} hrs
                                 </Typography>
                               ) : (
-                                <Typography variant="body2" color="text.secondary">-</Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>-</Typography>
                               )}
                             </TableCell>
-                                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
-                                  <Box>
-                                    {empAttendance?.punchInAddress && (
-                                      <Box sx={{ mb: empAttendance?.punchOutAddress ? 1 : 0 }}>
-                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 600, display: 'block' }}>
-                                          Check In:
-                                        </Typography>
-                                        <Typography variant="caption" color="text.primary" sx={{ fontSize: '0.75rem', display: 'block' }}>
-                                          {empAttendance.punchInAddress}
-                                        </Typography>
-                                      </Box>
-                                    )}
-                                    {empAttendance?.punchOutAddress && (
-                                      <Box>
-                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 600, display: 'block' }}>
-                                          Check Out:
-                                        </Typography>
-                                        <Typography variant="caption" color="text.primary" sx={{ fontSize: '0.75rem', display: 'block' }}>
-                                          {empAttendance.punchOutAddress}
-                                        </Typography>
-                                      </Box>
-                                    )}
-                                    {!empAttendance?.punchInAddress && !empAttendance?.punchOutAddress && (
-                                      <Typography variant="body2" color="text.secondary">-</Typography>
-                                    )}
+                            <TableCell sx={{ minWidth: { xs: 120, sm: 'auto' } }}>
+                              <Box>
+                                {empAttendance?.punchInAddress && (
+                                  <Box sx={{ mb: empAttendance?.punchOutAddress ? 1 : 0 }}>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.7rem' }, fontWeight: 600, display: 'block' }}>
+                                      {isMobile ? 'In:' : 'Check In:'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.primary" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, display: 'block' }}>
+                                      {isMobile && empAttendance.punchInAddress.length > 30 
+                                        ? `${empAttendance.punchInAddress.substring(0, 30)}...` 
+                                        : empAttendance.punchInAddress}
+                                    </Typography>
                                   </Box>
-                                </TableCell>
+                                )}
+                                {empAttendance?.punchOutAddress && (
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.7rem' }, fontWeight: 600, display: 'block' }}>
+                                      {isMobile ? 'Out:' : 'Check Out:'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.primary" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, display: 'block' }}>
+                                      {isMobile && empAttendance.punchOutAddress.length > 30 
+                                        ? `${empAttendance.punchOutAddress.substring(0, 30)}...` 
+                                        : empAttendance.punchOutAddress}
+                                    </Typography>
+                                  </Box>
+                                )}
+                                {!empAttendance?.punchInAddress && !empAttendance?.punchOutAddress && (
+                                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>-</Typography>
+                                )}
+                              </Box>
+                            </TableCell>
                           </TableRow>
                         );
                       })
