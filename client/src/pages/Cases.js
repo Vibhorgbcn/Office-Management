@@ -376,8 +376,14 @@ const Cases = () => {
       </Card>
 
       {/* Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)}>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3, overflowX: 'auto' }}>
+        <Tabs 
+          value={tabValue} 
+          onChange={(e, v) => setTabValue(v)}
+          variant={isMobile ? 'scrollable' : 'standard'}
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+        >
           <Tab label="Active Cases" />
           <Tab label="Completed" />
           <Tab label="Upcoming Hearings" />
@@ -387,19 +393,31 @@ const Cases = () => {
 
       {/* List View */}
       {viewMode === 'list' && (
-        <TableContainer component={Paper} sx={{ maxHeight: { xs: 'calc(100vh - 500px)', sm: 'none' }, overflowX: 'auto' }}>
-          <Table size={isMobile ? 'small' : 'medium'} stickyHeader>
+        <TableContainer 
+          component={Paper} 
+          sx={{ 
+            maxHeight: { xs: 'calc(100vh - 500px)', sm: 'none' }, 
+            overflowX: 'auto',
+            overflowY: { xs: 'auto', sm: 'visible' },
+            WebkitOverflowScrolling: 'touch',
+            '-webkit-overflow-scrolling': 'touch',
+            '& .MuiTable-root': {
+              minWidth: { xs: 800, sm: 'auto' }
+            }
+          }}
+        >
+          <Table size={isMobile ? 'small' : 'medium'} stickyHeader={!isMobile}>
             <TableHead>
               <TableRow>
-                <TableCell>Case Number</TableCell>
-                <TableCell>Title</TableCell>
-                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Client</TableCell>
-                <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>Court</TableCell>
-                <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Type</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Next Hearing</TableCell>
-                <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Assigned To</TableCell>
-                {user?.role === 'admin' && <TableCell align="right">Actions</TableCell>}
+                <TableCell sx={{ minWidth: { xs: 120, sm: 'auto' } }}>Case Number</TableCell>
+                <TableCell sx={{ minWidth: { xs: 140, sm: 'auto' } }}>Title / Description</TableCell>
+                <TableCell sx={{ minWidth: { xs: 140, sm: 'auto' } }}>Client / Contact</TableCell>
+                <TableCell sx={{ minWidth: { xs: 120, sm: 'auto' } }}>Court</TableCell>
+                <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>Type</TableCell>
+                <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>Status</TableCell>
+                <TableCell sx={{ minWidth: { xs: 100, sm: 'auto' } }}>Next Hearing</TableCell>
+                <TableCell sx={{ minWidth: { xs: 100, sm: 'auto' } }}>Assigned To</TableCell>
+                {user?.role === 'admin' && <TableCell align="right" sx={{ minWidth: { xs: 80, sm: 'auto' } }}>Actions</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -409,8 +427,8 @@ const Cases = () => {
                   sx={{ cursor: 'pointer', '&:hover': { backgroundColor: 'action.hover' } }}
                   onClick={() => navigate(`/admin/case-workspace/${caseItem._id}`)}
                 >
-                  <TableCell>
-                    <Typography variant="body2" fontWeight={500}>
+                  <TableCell sx={{ minWidth: { xs: 120, sm: 'auto' } }}>
+                    <Typography variant="body2" fontWeight={500} sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                       {caseItem.caseNumber}
                     </Typography>
                     {caseItem.priority && (
@@ -418,68 +436,118 @@ const Cases = () => {
                         label={caseItem.priority}
                         color={getPriorityColor(caseItem.priority)}
                         size="small"
-                        sx={{ mt: 0.5 }}
+                        sx={{ mt: 0.5, fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
                       />
                     )}
                   </TableCell>
-                  <TableCell>{caseItem.title}</TableCell>
-                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
-                    {caseItem.clientName}
+                  <TableCell sx={{ minWidth: { xs: 140, sm: 'auto' } }}>
+                    <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                      {caseItem.title}
+                    </Typography>
+                    {caseItem.description && (
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{
+                          fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                          display: 'block',
+                          mt: 0.25,
+                        }}
+                      >
+                        {caseItem.description.length > 90
+                          ? `${caseItem.description.substring(0, 90)}...`
+                          : caseItem.description}
+                      </Typography>
+                    )}
                   </TableCell>
-                  <TableCell sx={{ display: { xs: 'none', lg: 'table-cell' } }}>
-                    {caseItem.court}
+                  <TableCell sx={{ minWidth: { xs: 140, sm: 'auto' } }}>
+                    <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                      {caseItem.clientName || '—'}
+                    </Typography>
+                    {(caseItem.clientPhone ||
+                      caseItem.clientContact ||
+                      caseItem.clientMobile ||
+                      caseItem.clientEmail) && (
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{
+                          fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                          display: 'block',
+                          mt: 0.25,
+                        }}
+                      >
+                        {caseItem.clientPhone ||
+                          caseItem.clientContact ||
+                          caseItem.clientMobile ||
+                          caseItem.clientEmail}
+                      </Typography>
+                    )}
                   </TableCell>
-                  <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                    {caseItem.caseType}
+                  <TableCell sx={{ minWidth: { xs: 120, sm: 'auto' } }}>
+                    <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
+                      {caseItem.court}
+                    </Typography>
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>
+                    <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                      {caseItem.caseType}
+                    </Typography>
+                  </TableCell>
+                  <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>
                     <Chip
                       label={caseItem.status}
                       color={getStatusColor(caseItem.status)}
                       size="small"
+                      sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
                     />
                   </TableCell>
-                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                  <TableCell sx={{ minWidth: { xs: 100, sm: 'auto' } }}>
                     {caseItem.nextHearingDate ? (
                       <Chip
-                        label={format(new Date(caseItem.nextHearingDate), 'dd-MM-yyyy')}
+                        label={format(new Date(caseItem.nextHearingDate), isMobile ? 'dd-MM-yy' : 'dd-MM-yyyy')}
                         color={getDueDateStatus(caseItem.nextHearingDate)}
                         size="small"
                         icon={<CalendarToday fontSize="small" />}
+                        sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
                       />
                     ) : (
-                      <Typography variant="caption" color="text.secondary">-</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>-</Typography>
                     )}
                   </TableCell>
-                  <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                  <TableCell sx={{ minWidth: { xs: 100, sm: 'auto' } }}>
                     {caseItem.assignedTo ? (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem' }}>
+                        <Avatar sx={{ width: { xs: 20, sm: 24 }, height: { xs: 20, sm: 24 }, fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
                           {caseItem.assignedTo.name?.charAt(0)}
                         </Avatar>
-                        {caseItem.assignedTo.name}
+                        <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
+                          {caseItem.assignedTo.name}
+                        </Typography>
                       </Box>
                     ) : (
-                      <Typography variant="caption" color="text.secondary">Unassigned</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>Unassigned</Typography>
                     )}
                   </TableCell>
                   {user?.role === 'admin' && (
-                    <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                    <TableCell align="right" onClick={(e) => e.stopPropagation()} sx={{ minWidth: { xs: 80, sm: 'auto' } }}>
+                      <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 }, justifyContent: 'flex-end' }}>
                         <IconButton
-                          size="small"
+                          size={isMobile ? 'small' : 'medium'}
                           onClick={() => navigate(`/admin/case-workspace/${caseItem._id}`)}
+                          sx={{ padding: { xs: '4px', sm: '8px' } }}
                         >
-                          <Visibility fontSize="small" />
+                          <Visibility fontSize={isMobile ? 'small' : 'medium'} />
                         </IconButton>
                         {caseItem.status === 'pending' && (
                           <Button
-                            size="small"
+                            size={isMobile ? 'small' : 'medium'}
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedCase(caseItem);
                               setOpenAssignDialog(true);
                             }}
+                            sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, padding: { xs: '4px 8px', sm: '6px 16px' } }}
                           >
                             Assign
                           </Button>

@@ -21,16 +21,25 @@ import {
   TextField,
   Grid,
   Avatar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import { CheckCircle, Cancel, LocationOn, LocationOff, Person, PersonOff } from '@mui/icons-material';
 import axios from 'axios';
-import { format } from 'date-fns';
+import { format, startOfMonth } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 
 const Attendance = () => {
   const { user } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const today = new Date();
   
   // Employee states
   const [attendance, setAttendance] = useState([]);
@@ -42,8 +51,19 @@ const Attendance = () => {
   // Admin states
   const [allEmployeesAttendance, setAllEmployeesAttendance] = useState([]);
   const [employees, setEmployees] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedDate, setSelectedDate] = useState(format(today, 'yyyy-MM-dd'));
+  const [startDate, setStartDate] = useState(format(startOfMonth(today), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(format(today, 'yyyy-MM-dd'));
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [stats, setStats] = useState({ present: 0, absent: 0, halfDay: 0, late: 0, total: 0 });
+  const [tasksDialog, setTasksDialog] = useState({
+    open: false,
+    employee: null,
+    tasks: [],
+    loading: false,
+    error: '',
+  });
   
   // Common states
   const [loading, setLoading] = useState(false);
@@ -64,8 +84,9 @@ const Attendance = () => {
       fetchTodayAttendance();
       fetchAttendance();
     }
+    // Re-fetch when admin date range or selected date changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, selectedDate]);
+  }, [user, selectedDate, startDate, endDate]);
 
   // Get GPS location from browser
   const getCurrentLocation = () => {
@@ -187,26 +208,45 @@ const Attendance = () => {
   const fetchAllEmployeesAttendance = async (employeesList = null) => {
     try {
       setLoading(true);
-      const response = await axios.get(`/attendance/all?startDate=${selectedDate}&endDate=${selectedDate}`);
-      const attendanceData = response.data;
-      
-      setAllEmployeesAttendance(attendanceData);
-      
-      // Calculate stats - use provided employees list or state
+      // Fetch for full range for richer stats / monthly view
+      const response = await axios.get(
+        `/attendance/all?startDate=${startDate}&endDate=${endDate}`
+      );
+      const attendanceData = response.data || [];
+
+      // Keep a daily snapshot for the main table based on selectedDate
+      const attendanceForSelectedDate = attendanceData.filter((a) => {
+        if (!a.date) return false;
+        return format(new Date(a.date), 'yyyy-MM-dd') === selectedDate;
+      });
+      setAllEmployeesAttendance(attendanceForSelectedDate);
+
+      // Calculate stats across the selected date range
       const employeesToUse = employeesList || employees;
       const totalEmployees = employeesToUse.length;
-      
-      const present = attendanceData.filter(a => a.status === 'present' || a.status === 'half-day').length;
-      const absent = Math.max(0, totalEmployees - present);
-      const halfDay = attendanceData.filter(a => a.status === 'half-day').length;
-      const late = attendanceData.filter(a => {
-        if (!a.checkIn) return false;
+
+      const present = attendanceData.filter(
+        (a) => a.status === 'present' || a.status === 'half-day'
+      ).length;
+      const halfDay = attendanceData.filter((a) => a.status === 'half-day').length;
+      const late = attendanceData.filter((a) => {
+        if (!a.checkIn || !a.date) return false;
         const checkInTime = new Date(a.checkIn);
-        const expectedTime = new Date(selectedDate);
+        const expectedTime = new Date(a.date);
         expectedTime.setHours(9, 30, 0, 0); // Assuming 9:30 AM is expected time
         return checkInTime > expectedTime && a.status !== 'absent';
       }).length;
-      
+
+      // Approximate absent as "no record on a working day"
+      const uniqueDays = Array.from(
+        new Set(
+          attendanceData
+            .filter((a) => a.date)
+            .map((a) => format(new Date(a.date), 'yyyy-MM-dd'))
+        )
+      ).length;
+      const absent = Math.max(0, totalEmployees * uniqueDays - present);
+
       setStats({
         present,
         absent,
@@ -223,7 +263,7 @@ const Attendance = () => {
   };
 
   const getEmployeeAttendance = (employeeId) => {
-    return allEmployeesAttendance.find(a => a.userId?._id === employeeId);
+    return allEmployeesAttendance.find((a) => a.userId?._id === employeeId);
   };
 
   const getStatusColor = (status) => {
@@ -241,6 +281,149 @@ const Attendance = () => {
     return attendance.status === 'present' ? 'Present' :
            attendance.status === 'half-day' ? 'Half Day' :
            attendance.status || 'Present';
+  };
+
+  // Admin: Quick date range selectors
+  const handleQuickRange = (type) => {
+    const baseToday = new Date();
+
+    if (type === 'today') {
+      const value = format(baseToday, 'yyyy-MM-dd');
+      setStartDate(value);
+      setEndDate(value);
+      setSelectedDate(value);
+      return;
+    }
+
+    if (type === 'thisMonth') {
+      const monthStart = startOfMonth(baseToday);
+      setStartDate(format(monthStart, 'yyyy-MM-dd'));
+      setEndDate(format(baseToday, 'yyyy-MM-dd'));
+      setSelectedDate(format(baseToday, 'yyyy-MM-dd'));
+      return;
+    }
+  };
+
+  // Admin: View daily tasks for an employee (simple integration with work assignments)
+  const handleViewTasks = async (employee) => {
+    setTasksDialog({
+      open: true,
+      employee,
+      tasks: [],
+      loading: true,
+      error: '',
+    });
+
+    try {
+      // Fetch all work assignments and filter on the frontend
+      const response = await axios.get('/work-assignments');
+      const assignments = response.data || [];
+
+      const tasksForEmployee = assignments.filter(
+        (task) => task.assignedTo?._id === employee._id
+      );
+
+      setTasksDialog((prev) => ({
+        ...prev,
+        tasks: tasksForEmployee,
+        loading: false,
+      }));
+    } catch (err) {
+      console.error('Error fetching tasks for employee:', err);
+      setTasksDialog((prev) => ({
+        ...prev,
+        error: 'Failed to load tasks for this employee',
+        loading: false,
+      }));
+    }
+  };
+
+  const handleCloseTasksDialog = () => {
+    setTasksDialog({
+      open: false,
+      employee: null,
+      tasks: [],
+      loading: false,
+      error: '',
+    });
+  };
+
+  // Admin: Export current range / filters as CSV
+  const handleExportCsv = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(
+        `/attendance/all?startDate=${startDate}&endDate=${endDate}`
+      );
+      const data = response.data || [];
+
+      const rows = data
+        .filter((a) => {
+          if (!a.userId?._id) return false;
+          if (
+            selectedEmployeeId !== 'all' &&
+            a.userId._id !== selectedEmployeeId
+          ) {
+            return false;
+          }
+          if (
+            statusFilter !== 'all' &&
+            (a.status || 'absent') !== statusFilter
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .map((a) => ({
+          Date: a.date ? format(new Date(a.date), 'yyyy-MM-dd') : '',
+          Employee: a.userId?.name || '',
+          Designation: a.userId?.designation || a.userId?.role || '',
+          Status: a.status || 'absent',
+          CheckIn: a.checkIn ? format(new Date(a.checkIn), 'HH:mm:ss') : '',
+          CheckOut: a.checkOut ? format(new Date(a.checkOut), 'HH:mm:ss') : '',
+          WorkHours: a.workHours || '',
+          PunchInAddress: a.punchInAddress || '',
+          PunchOutAddress: a.punchOutAddress || '',
+        }));
+
+      if (rows.length === 0) {
+        setSuccess('No attendance records to export for the selected filters.');
+        return;
+      }
+
+      const headers = Object.keys(rows[0]);
+      const csv = [
+        headers.join(','),
+        ...rows.map((row) =>
+          headers
+            .map((key) => {
+              const val = row[key] ?? '';
+              const wrapped = String(val).replace(/"/g, '""');
+              return `"${wrapped}"`;
+            })
+            .join(',')
+        ),
+      ].join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute(
+        'download',
+        `attendance_${startDate}_to_${endDate}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      setSuccess('Attendance CSV exported successfully.');
+    } catch (err) {
+      console.error('Error exporting attendance CSV:', err);
+      setError('Failed to export attendance. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCheckIn = async () => {
@@ -382,18 +565,148 @@ const Attendance = () => {
     return (
       <Box sx={{ width: '100%', maxWidth: '100%', px: { xs: 1, sm: 0 }, minHeight: 'auto', pb: { xs: 4, sm: 0 } }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: { xs: 2, sm: 3 }, flexWrap: 'wrap', gap: 2 }}>
-          <Typography variant="h4" sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}>
-            Employee Attendance
-          </Typography>
-          <TextField
-            type="date"
-            label="Select Date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            size="small"
-          />
+          <Box>
+            <Typography variant="h4" sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}>
+              Employee Attendance
+            </Typography>
+            <TextField
+              type="date"
+              label="Table Date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              size="small"
+              sx={{ mt: 1, maxWidth: 180 }}
+            />
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => handleQuickRange('today')}
+            >
+              Today
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => handleQuickRange('thisMonth')}
+            >
+              This Month
+            </Button>
+            <Button
+              variant="contained"
+              size="small"
+              color="primary"
+              onClick={handleExportCsv}
+              disabled={loading}
+            >
+              Export CSV
+            </Button>
+          </Box>
         </Box>
+
+        {/* Date range summary + quick filters */}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: { xs: 'flex-start', sm: 'center' },
+            mb: { xs: 2, sm: 3 },
+            flexWrap: 'wrap',
+            gap: 2,
+          }}
+        >
+          <Box>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+            >
+              Showing data from{' '}
+              <strong>{format(new Date(startDate), 'dd MMM yyyy')}</strong> to{' '}
+              <strong>{format(new Date(endDate), 'dd MMM yyyy')}</strong> for{' '}
+              <strong>{employees.length}</strong> employees.
+            </Typography>
+          </Box>
+          <Box
+            sx={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 1,
+              alignItems: 'center',
+              justifyContent: { xs: 'flex-start', sm: 'flex-end' },
+            }}
+          >
+            <TextField
+              type="date"
+              label="From"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              size="small"
+            />
+            <TextField
+              type="date"
+              label="To"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              size="small"
+            />
+            <Button variant="outlined" size="small" onClick={() => handleQuickRange('today')}>
+              Today
+            </Button>
+            <Button variant="outlined" size="small" onClick={() => handleQuickRange('thisMonth')}>
+              This Month
+            </Button>
+            <Button
+              variant="contained"
+              size="small"
+              color="primary"
+              onClick={handleExportCsv}
+            >
+              Export CSV
+            </Button>
+          </Box>
+        </Box>
+
+        {/* Admin filters */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={4}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Employee</InputLabel>
+              <Select
+                label="Employee"
+                value={selectedEmployeeId}
+                onChange={(e) => setSelectedEmployeeId(e.target.value)}
+              >
+                <MenuItem value="all">All Employees</MenuItem>
+                {employees.map((emp) => (
+                  <MenuItem key={emp._id} value={emp._id}>
+                    {emp.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Status</InputLabel>
+              <Select
+                label="Status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <MenuItem value="all">All Status</MenuItem>
+                <MenuItem value="present">Present</MenuItem>
+                <MenuItem value="absent">Absent</MenuItem>
+                <MenuItem value="half-day">Half Day</MenuItem>
+                <MenuItem value="late">Late</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+        </Grid>
 
         {/* Stats Cards */}
         <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: 3 }}>
@@ -463,10 +776,10 @@ const Attendance = () => {
                 <CircularProgress />
               </Box>
             ) : (
-              <TableContainer 
-                component={Paper} 
+              <TableContainer
+                component={Paper}
                 elevation={0}
-                sx={{ 
+                sx={{
                   overflowX: 'auto',
                   overflowY: { xs: 'auto', sm: 'visible' },
                   maxHeight: { xs: 'calc(100vh - 350px)', sm: 'none' },
@@ -475,24 +788,32 @@ const Attendance = () => {
                   '-webkit-overflow-scrolling': 'touch',
                   position: 'relative',
                   '& .MuiTable-root': {
-                    minWidth: { xs: 600, sm: 'auto' },
-                    width: '100%'
+                    minWidth: { xs: 900, sm: 'auto' },
+                    width: '100%',
                   },
                   '& .MuiTableBody-root': {
-                    display: 'table-row-group'
-                  }
+                    display: 'table-row-group',
+                  },
                 }}
               >
                 <Table size={isMobile ? 'small' : 'medium'} stickyHeader={!isMobile}>
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ minWidth: { xs: 120, sm: 'auto' } }}>Employee</TableCell>
-                      <TableCell sx={{ minWidth: { xs: 100, sm: 'auto' } }}>Designation</TableCell>
+                      <TableCell sx={{ minWidth: { xs: 140, sm: 'auto' } }}>Employee</TableCell>
+                      <TableCell sx={{ minWidth: { xs: 110, sm: 'auto' } }}>Designation</TableCell>
                       <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>Check In</TableCell>
                       <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>Check Out</TableCell>
                       <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>Status</TableCell>
-                      <TableCell sx={{ minWidth: { xs: 80, sm: 'auto' } }}>Work Hours</TableCell>
-                      <TableCell sx={{ minWidth: { xs: 120, sm: 'auto' } }}>Location</TableCell>
+                      <TableCell sx={{ minWidth: { xs: 90, sm: 'auto' } }}>Work Hours</TableCell>
+                      <TableCell sx={{ minWidth: { xs: 160, sm: 'auto' } }}>Location</TableCell>
+                      <TableCell
+                        sx={{
+                          minWidth: { xs: 110, sm: 'auto' },
+                          display: { xs: 'none', md: 'table-cell' },
+                        }}
+                      >
+                        Daily Tasks
+                      </TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -505,10 +826,23 @@ const Attendance = () => {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      employees.map((employee, index) => {
+                      employees
+                        .filter((employee) =>
+                          selectedEmployeeId === 'all'
+                            ? true
+                            : employee._id === selectedEmployeeId
+                        )
+                        .map((employee) => {
                         const empAttendance = getEmployeeAttendance(employee._id);
                         const status = getStatusLabel(empAttendance);
                         const statusColor = getStatusColor(empAttendance?.status || 'absent');
+
+                        if (
+                          statusFilter !== 'all' &&
+                          (empAttendance?.status || 'absent') !== statusFilter
+                        ) {
+                          return null;
+                        }
                         
                         return (
                           <TableRow 
@@ -521,7 +855,7 @@ const Attendance = () => {
                               minHeight: '48px'
                             }}
                           >
-                            <TableCell sx={{ minWidth: { xs: 120, sm: 'auto' } }}>
+                            <TableCell sx={{ minWidth: { xs: 140, sm: 'auto' } }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <Avatar sx={{ width: { xs: 28, sm: 32 }, height: { xs: 28, sm: 32 }, bgcolor: 'primary.main', fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                                   {employee.name?.charAt(0).toUpperCase()}
@@ -533,7 +867,7 @@ const Attendance = () => {
                                 </Box>
                               </Box>
                             </TableCell>
-                            <TableCell sx={{ minWidth: { xs: 100, sm: 'auto' } }}>
+                            <TableCell sx={{ minWidth: { xs: 110, sm: 'auto' } }}>
                               <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                                 {employee.designation || employee.role}
                               </Typography>
@@ -578,7 +912,7 @@ const Attendance = () => {
                                 <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>-</Typography>
                               )}
                             </TableCell>
-                            <TableCell sx={{ minWidth: { xs: 120, sm: 'auto' } }}>
+                            <TableCell sx={{ minWidth: { xs: 160, sm: 'auto' } }}>
                               <Box>
                                 {empAttendance?.punchInAddress && (
                                   <Box sx={{ mb: empAttendance?.punchOutAddress ? 1 : 0 }}>
@@ -608,6 +942,20 @@ const Attendance = () => {
                                   <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>-</Typography>
                                 )}
                               </Box>
+                            </TableCell>
+                            <TableCell
+                              sx={{
+                                minWidth: { xs: 110, sm: 'auto' },
+                                display: { xs: 'none', md: 'table-cell' },
+                              }}
+                            >
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => handleViewTasks(employee)}
+                              >
+                                View Tasks
+                              </Button>
                             </TableCell>
                           </TableRow>
                         );
